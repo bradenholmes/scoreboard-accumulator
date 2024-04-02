@@ -1,6 +1,8 @@
 package com.mindfuldroid.scoreboard.accumulator;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
@@ -9,23 +11,27 @@ import org.quartz.JobBuilder;
 import org.quartz.JobDetail;
 import org.quartz.Scheduler;
 import org.quartz.SchedulerException;
-import org.quartz.SimpleTrigger;
 import org.quartz.Trigger;
 import org.quartz.TriggerBuilder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.mindfuldroid.scoreboard.accumulator.jobs.TestJob;
-import com.mindfuldroid.scoreboard.accumulator.response.TestGreeting;
+import com.mindfuldroid.scoreboard.accumulator.jobs.MorningUpdateJob;
+import com.mindfuldroid.scoreboard.accumulator.response.AccumulatorResponse;
+import com.mindfuldroid.scoreboard.accumulator.response.ErrorResponse;
+import com.mindfuldroid.scoreboard.accumulator.response.SimpleResponse;
+import com.mindfuldroid.scoreboard.accumulator.response.StartResponse;
 
 import jakarta.annotation.PostConstruct;
 
 @RestController
 public class Controller {
-	private static final String template = "Hello, %s!";
+	
+	Logger logger = LoggerFactory.getLogger("CONTROLLER");
 	
 	@Autowired
 	ApplicationContext context;
@@ -42,7 +48,7 @@ public class Controller {
 	}
 	
 	private void defineRoutineJobs() {
-		JobDetail morningUpdate = JobBuilder.newJob(TestJob.class).build();
+		JobDetail morningUpdate = JobBuilder.newJob(MorningUpdateJob.class).withDescription("morning_update_job").build();
 		Trigger morningUpdateTrigger = TriggerBuilder.newTrigger()
 				.withIdentity("morning_update_trigger")
 				.withSchedule(CronScheduleBuilder.dailyAtHourAndMinute(19, 6))
@@ -52,22 +58,45 @@ public class Controller {
 	
 	}
 	
-	@GetMapping("/greeting")
-	public TestGreeting greeting(@RequestParam(value = "name", defaultValue = "World") String name) {
-		return new TestGreeting(1, String.format(template, name));
+	@GetMapping("/health")
+	public AccumulatorResponse healthCheack() {
+		return new SimpleResponse(200, "Hello! I'm alive :)");
 	}
 	
 	@GetMapping("/start")
-	public TestGreeting start() {
-		
+	public AccumulatorResponse start() {
+		List<String> jobsScheduled = new ArrayList<>();
 		try {
 			for (Entry<JobDetail, Trigger> e: routineJobs.entrySet()) {
 				scheduler.scheduleJob(e.getKey(), e.getValue());
+				jobsScheduled.add(e.getKey().getDescription());
 			}
 		} catch (SchedulerException e) {
-			return new TestGreeting(1, String.format(template, "it failed :("));
+			return new ErrorResponse("", e);
 		}
 		
-		return new TestGreeting(1, String.format(template, "I DID IT"));
+		return new StartResponse("scheduled all jobs successfully, system is operational!", jobsScheduled);
+	}
+	
+	@GetMapping("/pause")
+	public AccumulatorResponse pause() {
+		try {
+			scheduler.pauseAll();
+		} catch (SchedulerException e) {
+			return new ErrorResponse("FAILED TO PAUSE", e);
+		}
+		
+		return new SimpleResponse(200, "accumulation is paused");
+	}
+	
+	@GetMapping("/resume")
+	public AccumulatorResponse resume() {
+		try {
+			scheduler.resumeAll();
+		} catch (SchedulerException e) {
+			return new ErrorResponse("FAILED TO RESUME", e);
+		}
+		
+		return new SimpleResponse(200, "accumulation is resumed!");
 	}
 }

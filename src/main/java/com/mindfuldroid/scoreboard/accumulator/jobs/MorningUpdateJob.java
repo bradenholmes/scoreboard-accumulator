@@ -17,8 +17,8 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
 
 @Component
-public class TestJob implements Job {
-	Logger logger = LoggerFactory.getLogger(getClass());
+public class MorningUpdateJob implements Job {
+	Logger logger = LoggerFactory.getLogger(MorningUpdateJob.class);
 	
 	@Autowired
 	ApplicationContext appContext;
